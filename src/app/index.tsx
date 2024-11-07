@@ -8,6 +8,9 @@ import { ModeSelector } from '../components/mode-selector/ModeSelector';
 import { TimerSettings } from '../components/settings/TimerSettings';
 import { COLORS, TIMES } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { Tutorial } from '../components/tutorial/Tutorial';
+import { Toast } from '../components/toast/Toast';
+import { SprintCounter } from '../components/sprint-counter/SprintCounter';
 
 // Definindo a sequência de sprints
 const SPRINT_SEQUENCE = [
@@ -31,17 +34,38 @@ export default function App() {
   const slideAnim = useRef(new Animated.Value(0)).current;
   const [showSettings, setShowSettings] = useState(false);
   const [customTimes, setCustomTimes] = useState(TIMES);
+  const [showTutorial, setShowTutorial] = useState(true);
+  const [toast, setToast] = useState({ visible: false, message: '' });
+  const [completedSprints, setCompletedSprints] = useState(0);
+
+  useEffect(() => {
+    setShowTutorial(true);
+  }, []);
+
+  const handleTutorialComplete = () => {
+    setShowTutorial(false);
+  };
 
   // Função para avançar para o próximo sprint
   const moveToNextSprint = () => {
     const nextIndex = (sprintIndex + 1) % SPRINT_SEQUENCE.length;
     const nextMode = SPRINT_SEQUENCE[nextIndex];
     
+    if (mode === 'work') {
+      setCompletedSprints(prev => prev + 1);
+    }
+    
     setSprintIndex(nextIndex);
     setMode(nextMode);
     setTimeLeft(customTimes[nextMode]);
     
-    // Anima a transição de cor
+    const messages = {
+      work: '🎯 Hora de focar!',
+      shortBreak: '☕ Pausa curta',
+      longBreak: '🌟 Pausa longa',
+    };
+    showToast(messages[nextMode]);
+    
     Animated.timing(backgroundAnim, {
       toValue: nextMode === 'work' ? 0 : nextMode === 'shortBreak' ? 1 : 2,
       duration: 500,
@@ -62,10 +86,12 @@ export default function App() {
         setTimeLeft((time) => time - 1);
       }, 1000);
     } else if (timeLeft === 0 && isAutoMode) {
-      // Quando o timer chega a zero em modo automático
       moveToNextSprint();
-      setIsPlaying(true); // Mantém rodando
+      setIsPlaying(true);
     } else if (timeLeft === 0) {
+      if (mode === 'work') {
+        setCompletedSprints(prev => prev + 1);
+      }
       setIsPlaying(false);
     }
 
@@ -85,6 +111,7 @@ export default function App() {
   const handleReset = () => {
     setIsPlaying(false);
     setTimeLeft(customTimes[mode]);
+    setCompletedSprints(0);
   };
 
   const handleModeChange = (newMode: 'work' | 'shortBreak' | 'longBreak') => {
@@ -92,7 +119,6 @@ export default function App() {
     setIsPlaying(false);
     setTimeLeft(customTimes[newMode]);
     
-    // Encontra o índice correto no SPRINT_SEQUENCE
     const newIndex = SPRINT_SEQUENCE.findIndex(m => m === newMode);
     setSprintIndex(newIndex >= 0 ? newIndex : 0);
     
@@ -117,9 +143,17 @@ export default function App() {
     outputRange: [COLORS.work, COLORS.shortBreak, COLORS.longBreak],
   });
 
+  const showToast = (message: string) => {
+    setToast({ visible: true, message });
+    setTimeout(() => {
+      setToast({ visible: false, message: '' });
+    }, 3000);
+  };
+
   return (
     <SafeAreaProvider>
       <Animated.View style={[styles.container, { backgroundColor }]}>
+        <SprintCounter completedSprints={completedSprints} />
         <View style={styles.headerButtons}>
           <TouchableOpacity 
             style={[styles.headerButton, isAutoMode && styles.headerButtonActive]}
@@ -178,6 +212,11 @@ export default function App() {
             />
           </View>
         )}
+        {showTutorial && <Tutorial onComplete={handleTutorialComplete} />}
+        <Toast 
+          message={toast.message} 
+          isVisible={toast.visible} 
+        />
         <StatusBar style="light" />
       </Animated.View>
     </SafeAreaProvider>
